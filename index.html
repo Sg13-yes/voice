@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Gender Detection</title>
+</head>
+<body>
+  <h2>Voice Gender Detector</h2>
+  <button id="record">Start Recording</button>
+  <p id="result">Gender: ?</p>
+
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.10.0"></script>
+  <script src="https://cdn.jsdelivr.net/npm/meyda/dist/web/meyda.min.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
+<script>
+let audioContext;
+let analyzer;
+let mic;
+let meyda;
+let model;
+
+document.getElementById("record").addEventListener("click", async () => {
+  await startRecording();
+});
+
+async function startRecording() {
+  audioContext = new (window.AudioContext || window.webkitAudioContext)();
+  const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  mic = audioContext.createMediaStreamSource(stream);
+
+  analyzer = audioContext.createAnalyser();
+
+  mic.connect(analyzer);
+
+  meyda = Meyda.createMeydaAnalyzer({
+    audioContext: audioContext,
+    source: mic,
+    bufferSize: 512,
+    featureExtractors: ["mfcc"],
+    callback: features => {
+      predictGender(features.mfcc);
+    }
+  });
+
+  meyda.start();
+}
+
+async function loadModel() {
+  model = await tf.loadLayersModel("model/model.json");
+}
+
+async function predictGender(mfcc) {
+  if (!model || !mfcc) return;
+
+  const input = tf.tensor(mfcc).reshape([1, mfcc.length]);
+  const prediction = model.predict(input);
+  const result = await prediction.data();
+
+  const gender = result[0] > 0.5 ? "Male" : "Female";
+  document.getElementById("result").innerText = `Gender: ${gender}`;
+}
+
+// Load model on page load
+loadModel();
+</script>
